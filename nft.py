@@ -104,8 +104,6 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
     min_list_price = 10000000000000.0
     for asset in assets:
         print(asset['token_id'])
-        if(asset['token_id'] == '1334'):
-            print(asset)
         try:
             price = grab_price(asset)
             if price != None:
