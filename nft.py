@@ -97,8 +97,7 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
         offset = offset+limit+1
 
     if len(assets) == 0:
-        print('No assets in this collection')
-        return
+        return 'No assets in this collection'
 
 
     min_list_price = 10000000000000.0
@@ -119,10 +118,13 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
             continue
 
     print(f'Floor price for {trait_value} is {min_list_price}')
-    return
+    return min_list_price
 
-address = get_collection_stats('crypto-dino-v3')
-get_floor_price_by_property(address, 'Fin', 'fin_yellow', 1390)
+
+def get_floor_price(collection_name):
+    address = get_collection_stats(collection_name) #'crypto-dino-v3'
+    return get_floor_price_by_property(address, 'Fin', 'fin_yellow', 1390)
+
 
 # fin Fin Yellow
 # get_asset_by_token_id('0xcc14dd8e6673fee203366115d3f9240b079a4930','916')
