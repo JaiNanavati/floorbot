@@ -1,9 +1,13 @@
 from opensea import Assets
 from opensea import Collections
+import threading
 import os
 import json
 import requests
-from concurrent.futures import ThreadPoolExecutor as PoolExecutor
+import concurrent.futures
+
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 
 
@@ -76,33 +80,52 @@ def grab_price(asset):
         return None
 
 def fire_url(url):
-    response = requests.request("GET", url)
-    if response.status_code == 200:
-        return response.json()
-    else:
+    print(f'Firing url {url}')
+    s = requests.Session()
+    try:
+        retries = Retry(total=5, backoff_factor=1, status_forcelist=[ 429, 503, 504 ])
+        s.mount('https://', HTTPAdapter(max_retries=retries))
+        response = s.get(url)
+        if response.status_code == 200:
+            return response.json()['assets']
+        else:
+            raise Exception()
+    except:
+        print(f'Failed to retrieve assets')
         return None
 
 
 def get_floor_price_by_property(address, trait_type, trait_value, collection_count):
     assets = []
+    futures = []
+    urls = []
     limit = 50
     offset = 0
     while offset <= collection_count:
         url = base_assets_url + f'asset_contract_address={address}&offset={offset}&limit={limit}&order_direction=asc'
-        response = requests.request("GET", url)
-        if response.status_code == 200:
-            assets = assets + response.json()['assets']
-        else:
-            break
+        urls.append(url)
         offset = offset+limit+1
 
+
+
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_url = {executor.submit(fire_url, url): url for url in urls}
+        future = executor.submit(fire_url, url)
+        for future in concurrent.futures.as_completed(future_to_url):
+            url = future_to_url[future]
+            result = future.result()
+            if result:
+                assets = assets + future.result()
+
+
+    print('Checking for assets')
     if len(assets) == 0:
         return 'No assets in this collection'
 
 
     min_list_price = 10000000000000.0
     for asset in assets:
-        print(asset['token_id'])
         try:
             price = grab_price(asset)
             if price != None:
