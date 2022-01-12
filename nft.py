@@ -16,10 +16,10 @@ contract_address='0xcc14dd8e6673fee203366115d3f9240b079a4930'
 ludo_labs = 'ludo-labs'
 owner_address = os.getenv('address')
 base_url = 'https://rinkeby-api.opensea.io/api/v1/'
-coll_ep = "https://api.opensea.io/collection/"
-assets_ep = "https://api.opensea.io/api/v1/assets"
-base_assets_url = 'https://testnets-api.opensea.io/assets?'
-base_collection_url = 'https://testnets-api.opensea.io/collection/'
+# coll_ep = "https://api.opensea.io/collection/"
+# assets_ep = "https://api.opensea.io/api/v1/assets"
+base_assets_url = 'https://api.opensea.io/api/v1/assets' if os.getenv('env') == 'prod' else 'https://testnets-api.opensea.io/assets?'
+base_collection_url = 'https://api.opensea.io/collection/' if os.getenv('env') == 'prod' else 'https://testnets-api.opensea.io/collection/'
 
 
 api = Assets()
@@ -55,6 +55,7 @@ def get_asset_price_by_token_id(asset_contract_address, token_id):
 def get_collection(collection_name):
 
     asset_contract_url = base_collection_url+collection_name
+    print(asset_contract_url)
     response = requests.request("GET", asset_contract_url)
     if response.status_code == 200:
         print('Successfully collected data')
