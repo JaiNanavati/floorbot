@@ -57,20 +57,29 @@ def get_collection(collection_name):
     asset_contract_url = base_collection_url+collection_name
     response = requests.request("GET", asset_contract_url)
     if response.status_code == 200:
+        print('Successfully collected data')
         return response.json()
     else:
+        print(f'Collection call failed with status code {response.status_code}')
         return None
 
 
 def get_collection_stats(collection_name):
+    print(f'Grabbing stats for {collection_name}')
     collection = get_collection(collection_name)
     if collection:
         contract_address = collection['collection']['primary_asset_contracts'][0]['address']
-        floor_price = collection['collection']['stats']['floor_price']
         print(f'Contract Address is: {contract_address}')
+
+        floor_price = collection['collection']['stats']['floor_price']
         print(f'Floor price is: {floor_price}')
-        return contract_address
+
+        supply = collection['collection']['stats']['total_supply']
+        print(f'Total supply is: {supply}')
+
+        return contract_address, floor_price, supply
     else:
+        raise Exception()
         print('No collection by that name')
 
 def grab_price(asset):
@@ -89,13 +98,14 @@ def fire_url(url):
         if response.status_code == 200:
             return response.json()['assets']
         else:
+            print(f'Failed to retrieve assets {response.status_code}')
             raise Exception()
     except:
-        print(f'Failed to retrieve assets')
         return None
 
 
 def get_floor_price_by_property(address, trait_type, trait_value, collection_count):
+    print(f'Trait type {trait_type}, Trait value {trait_value}')
     assets = []
     futures = []
     urls = []
@@ -105,8 +115,6 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
         url = base_assets_url + f'asset_contract_address={address}&offset={offset}&limit={limit}&order_direction=asc'
         urls.append(url)
         offset = offset+limit+1
-
-
 
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -132,8 +140,8 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
                 token_id = asset['token_id']
                 traits = asset['traits']
                 for trait in traits:
-                    if trait['trait_type'] == trait_type:
-                        if trait['value'] == trait_value:
+                    if trait['trait_type'].lower() == trait_type.lower():
+                        if trait['value'].lower() == trait_value.lower():
                             if min_list_price > price:
                                  min_list_price = price
                                  print(f'New floor price is {min_list_price}')
@@ -144,9 +152,15 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
     return min_list_price
 
 
-def get_floor_price(collection_name):
-    address = get_collection_stats(collection_name) #'crypto-dino-v3'
-    return get_floor_price_by_property(address, 'Fin', 'fin_yellow', 1390)
+def get_floor_price(collection_name, prop, prop_val):
+    try:
+        address, floor_price, supply = get_collection_stats(collection_name) #'crypto-dino-v3'
+        if not prop:
+            return f'Floor price of {collection_name} is {floor_price}'
+        return get_floor_price_by_property(address, prop, prop_val, supply)
+    except:
+        return 'Error! Make sure collection name is correct and property name and val exist.'
+    # get_floor_price_by_property(address, 'Fin', 'fin_yellow', 1390)
 
 
 # fin Fin Yellow
