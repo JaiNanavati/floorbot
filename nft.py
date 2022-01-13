@@ -9,7 +9,7 @@ import concurrent.futures
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-
+prop_map = {'duo': 'jadu hoverboard duo', 'duo_pro':'jadu hoverboard duo pro', 'classic': 'jadu hoverboard classic', 'pro':'jadu hoverboard pro'}
 
 
 contract_address='0xcc14dd8e6673fee203366115d3f9240b079a4930'
@@ -18,7 +18,7 @@ owner_address = os.getenv('address')
 base_url = 'https://rinkeby-api.opensea.io/api/v1/'
 # coll_ep = "https://api.opensea.io/collection/"
 # assets_ep = "https://api.opensea.io/api/v1/assets"
-base_assets_url = 'https://api.opensea.io/api/v1/assets' if os.getenv('env') == 'prod' else 'https://testnets-api.opensea.io/assets?'
+base_assets_url = 'https://api.opensea.io/api/v1/assets?' if os.getenv('env') == 'prod' else 'https://testnets-api.opensea.io/assets?'
 base_collection_url = 'https://api.opensea.io/collection/' if os.getenv('env') == 'prod' else 'https://testnets-api.opensea.io/collection/'
 
 
@@ -85,7 +85,12 @@ def get_collection_stats(collection_name):
 
 def grab_price(asset):
     if asset['sell_orders'] != None:
-        return float(asset["sell_orders"][0]['current_price'])/1000000000000000000
+        if asset['sell_orders'][0]['payment_token_contract']['id'] == 1:
+            return float(asset["sell_orders"][0]['current_price'])/1000000000000000000
+        else:
+            token_id = asset['token_id']
+            print(f'{token_id} has token contract 2')
+            return None
     else:
         return None
 
@@ -93,7 +98,7 @@ def fire_url(url):
     print(f'Firing url {url}')
     s = requests.Session()
     try:
-        retries = Retry(total=5, backoff_factor=1, status_forcelist=[ 429, 503, 504 ])
+        retries = Retry(total=2, backoff_factor=1, status_forcelist=[ 404, 429, 503, 504 ])
         s.mount('https://', HTTPAdapter(max_retries=retries))
         response = s.get(url)
         if response.status_code == 200:
@@ -118,7 +123,7 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
         offset = offset+limit+1
 
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         future_to_url = {executor.submit(fire_url, url): url for url in urls}
         future = executor.submit(fire_url, url)
         for future in concurrent.futures.as_completed(future_to_url):
@@ -126,6 +131,8 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
             result = future.result()
             if result:
                 assets = assets + future.result()
+            else:
+                print(result)
 
 
     print('Checking for assets')
@@ -134,6 +141,9 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
 
 
     min_list_price = 10000000000000.0
+    found_floor = False
+    floor_token_id = ''
+    debug_json = {}
     for asset in assets:
         try:
             price = grab_price(asset)
@@ -144,13 +154,21 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
                     if trait['trait_type'].lower() == trait_type.lower():
                         if trait['value'].lower() == trait_value.lower():
                             if min_list_price > price:
-                                 min_list_price = price
-                                 print(f'New floor price is {min_list_price}')
+                                floor_token_id = token_id
+                                found_floor = True
+                                min_list_price = price
+                                debug_json = asset
+                                print(f'New floor price is {min_list_price}')
         except:
             continue
 
-    print(f'Floor price for {trait_value} is {min_list_price}')
-    return min_list_price
+    if found_floor:
+        # print(debug_json)
+        link = f'https://opensea.io/assets/{address}/{floor_token_id}'
+        return f'Floor price for {trait_value} is {min_list_price}. {link}'
+    else:
+        return f'Could not find floor in scanned items'
+
 
 
 def get_floor_price(collection_name, prop, prop_val):
@@ -158,6 +176,28 @@ def get_floor_price(collection_name, prop, prop_val):
         address, floor_price, supply = get_collection_stats(collection_name) #'crypto-dino-v3'
         if not prop:
             return f'Floor price of {collection_name} is {floor_price}'
+        print(f'Supply is {supply}')
+
+        try:
+            f = open(f'collections/{collection_name}.json')
+        except:
+            return 'Your collection is not supported yet.'
+
+        coll_json = json.load(f)
+        props  = coll_json['collection']['traits'].keys()
+
+        props = [p.lower() for p in props]
+        if prop not in props:
+            return f'Invalid property name. Here is a list {list(props)}'
+
+        prop_vals = coll_json['collection']['traits'][prop].keys()
+        prop_vals = [v.lower() for v in prop_vals]
+        if prop_val not in prop_vals:
+            return f'Invalid property value. Here is a list {list(prop_vals)}'
+
+        if prop_val in prop_map.keys():
+            prop_val = prop_map[prop_val]
+
         return get_floor_price_by_property(address, prop, prop_val, supply)
     except:
         return 'Error! Make sure collection name is correct and property name and val exist.'

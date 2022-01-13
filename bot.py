@@ -19,16 +19,15 @@ bot = commands.Bot(command_prefix='!')
 # async def on_ready():
 #     print(f'{client.user.name} has connected to Discord!')
 
-@bot.command(name='floor', help='collection slug, property type (optional), property value (mandatory if specifying property type, optional otherwise)')
-async def floor(ctx, slug: str, prop: str=None, prop_val: str=None):
-    # if len(message_arr) < 4 or len(message_arr) > 4:
-    #     raise discord.DiscordException
+@bot.command(name='floor', help='collection slug, property type (optional), property value (optional)')
+async def floor(ctx, slug: str, prop: str=None, *, arg=None):
+
+    prop_val = arg
     if prop:
         if not prop_val:
             response =  'Specify value along with your property'
     response = get_floor_price(slug, prop, prop_val)
     await ctx.send(response)
-
 
 # @client.event
 # async def on_message(message):
