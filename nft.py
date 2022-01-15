@@ -9,54 +9,19 @@ import concurrent.futures
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
-prop_map = {'duo': 'jadu hoverboard duo', 'duo_pro':'jadu hoverboard duo pro', 'classic': 'jadu hoverboard classic', 'pro':'jadu hoverboard pro'}
-
-
-contract_address='0xcc14dd8e6673fee203366115d3f9240b079a4930'
-ludo_labs = 'ludo-labs'
 owner_address = os.getenv('address')
-base_url = 'https://rinkeby-api.opensea.io/api/v1/'
-# coll_ep = "https://api.opensea.io/collection/"
-# assets_ep = "https://api.opensea.io/api/v1/assets"
+api_key = os.getenv('opensea_api_key')
+
 base_assets_url = 'https://api.opensea.io/api/v1/assets?' if os.getenv('env') == 'prod' else 'https://testnets-api.opensea.io/assets?'
 base_collection_url = 'https://api.opensea.io/collection/' if os.getenv('env') == 'prod' else 'https://testnets-api.opensea.io/collection/'
-
-
-api = Assets()
-
-collections = Collections()
-
-
-def get_assets_by_owner(owner_address):
-    assets_response = api.fetch(owner=owner_address)
-    assets = assets_response['assets']
-
-    for asset in assets:
-        if ludo_labs in asset['collection']['slug']:
-            for trait in asset['traits']:
-                type = trait['trait_type']
-                value = trait['value']
-                print(f'Type {type} value {value}')
-                print('\n')
-
-def get_asset_price_by_token_id(asset_contract_address, token_id):
-
-    url = f'https://testnets-api.opensea.io/asset/{asset_contract_address}/{token_id}/'
-    response = requests.request("GET", url)
-
-    if response.status_code == 200:
-        try:
-            list_price = float(response.json()["orders"][0]['current_price'])/1000000000000000000
-            return list_price
-        except:
-            return None
+headers = {'X-API-KEY': api_key}
 
 
 def get_collection(collection_name):
 
     asset_contract_url = base_collection_url+collection_name
     print(asset_contract_url)
-    response = requests.request("GET", asset_contract_url)
+    response = requests.request("GET", asset_contract_url, headers=headers)
     if response.status_code == 200:
         print('Successfully collected data')
         return response.json()
@@ -85,6 +50,7 @@ def get_collection_stats(collection_name):
 
 def grab_price(asset):
     if asset['sell_orders'] != None:
+        # To ensure clearly listed asset is not of auction type but rather clear set price
         if asset['sell_orders'][0]['payment_token_contract']['id'] == 1:
             return float(asset["sell_orders"][0]['current_price'])/1000000000000000000
         else:
@@ -100,7 +66,7 @@ def fire_url(url):
     try:
         retries = Retry(total=2, backoff_factor=1, status_forcelist=[ 404, 429, 503, 504 ])
         s.mount('https://', HTTPAdapter(max_retries=retries))
-        response = s.get(url)
+        response = s.get(url, headers=headers)
         if response.status_code == 200:
             return response.json()['assets']
         else:
@@ -123,7 +89,7 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
         offset = offset+limit+1
 
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_url = {executor.submit(fire_url, url): url for url in urls}
         future = executor.submit(fire_url, url)
         for future in concurrent.futures.as_completed(future_to_url):
@@ -201,8 +167,3 @@ def get_floor_price(collection_name, prop, prop_val):
         return get_floor_price_by_property(address, prop, prop_val, supply)
     except:
         return 'Error! Make sure collection name is correct and property name and val exist.'
-    # get_floor_price_by_property(address, 'Fin', 'fin_yellow', 1390)
-
-
-# fin Fin Yellow
-# get_asset_by_token_id('0xcc14dd8e6673fee203366115d3f9240b079a4930','916')

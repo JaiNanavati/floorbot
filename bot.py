@@ -21,7 +21,6 @@ bot = commands.Bot(command_prefix='!')
 
 @bot.command(name='floor', help='collection slug, property type (optional), property value (optional)')
 async def floor(ctx, slug: str, prop: str=None, *, arg=None):
-
     prop_val = arg
     if prop:
         if not prop_val:
