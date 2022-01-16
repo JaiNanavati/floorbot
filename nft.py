@@ -137,7 +137,7 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
 
 
 
-def get_floor_price(collection_name, prop, prop_val):
+async def get_floor_price(collection_name, prop, prop_val):
     try:
         address, floor_price, supply = get_collection_stats(collection_name) #'crypto-dino-v3'
         if not prop:
@@ -161,9 +161,7 @@ def get_floor_price(collection_name, prop, prop_val):
         if prop_val not in prop_vals:
             return f'Invalid property value. Here is a list {list(prop_vals)}'
 
-        if prop_val in prop_map.keys():
-            prop_val = prop_map[prop_val]
-
         return get_floor_price_by_property(address, prop, prop_val, supply)
-    except:
+    except Exception as e:
+        print(str(e))
         return 'Error! Make sure collection name is correct and property name and val exist.'
