@@ -5,6 +5,8 @@ import os
 import json
 import requests
 import concurrent.futures
+import aiohttp
+
 
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
@@ -76,7 +78,19 @@ def fire_url(url):
         return None
 
 
-def get_floor_price_by_property(address, trait_type, trait_value, collection_count):
+async def async_fire_url(url):
+    print(f'Firing url {url}')
+    async with aiohttp.ClientSession() as s:
+        response = await s.get(url)
+        print(f"Done downloading {url}")
+        if response.status_code == 200:
+            return response.json()['assets']
+        else:
+            print(f'Failed to retrieve assets {response.status_code}')
+            raise Exception()
+
+
+async def get_floor_price_by_property(address, trait_type, trait_value, collection_count):
     print(f'Trait type {trait_type}, Trait value {trait_value}')
     assets = []
     futures = []
@@ -109,7 +123,7 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
     min_list_price = 10000000000000.0
     found_floor = False
     floor_token_id = ''
-    debug_json = {}
+    prices = []
     for asset in assets:
         try:
             price = grab_price(asset)
@@ -122,6 +136,7 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
                             if min_list_price > price:
                                 floor_token_id = token_id
                                 found_floor = True
+                                prices.append(price)
                                 min_list_price = price
                                 debug_json = asset
                                 print(f'New floor price is {min_list_price}')
@@ -129,17 +144,17 @@ def get_floor_price_by_property(address, trait_type, trait_value, collection_cou
             continue
 
     if found_floor:
-        # print(debug_json)
+        prices.sort()
         link = f'https://opensea.io/assets/{address}/{floor_token_id}'
-        return f'Floor price for {trait_value} is {min_list_price}. {link}'
+        return f'Floor price for {trait_value} is {min_list_price}. {link} \n Next prices are {prices}'
     else:
         return f'Could not find floor in scanned items'
 
 
 
-def get_floor_price(collection_name, prop, prop_val):
+async def get_floor_price(collection_name, prop, prop_val):
     try:
-        address, floor_price, supply = get_collection_stats(collection_name) #'crypto-dino-v3'
+        address, floor_price, supply = get_collection_stats(collection_name)
         if not prop:
             return f'Floor price of {collection_name} is {floor_price}'
         print(f'Supply is {supply}')
@@ -149,6 +164,7 @@ def get_floor_price(collection_name, prop, prop_val):
         except:
             return 'Your collection is not supported yet.'
 
+        print(f'Opened {collection_name} successfully')
         coll_json = json.load(f)
         props  = coll_json['collection']['traits'].keys()
 
@@ -161,9 +177,13 @@ def get_floor_price(collection_name, prop, prop_val):
         if prop_val not in prop_vals:
             return f'Invalid property value. Here is a list {list(prop_vals)}'
 
-        if prop_val in prop_map.keys():
-            prop_val = prop_map[prop_val]
-
         return get_floor_price_by_property(address, prop, prop_val, supply)
     except:
         return 'Error! Make sure collection name is correct and property name and val exist.'
+
+def get_creepz_floors():
+    _, gen_floor_price, _ = get_collection_stats('genesis-creepz')
+    _, arm_floor_price, _ = get_collection_stats('reptile-armoury')
+    _, ss_floor_price, _ = get_collection_stats('creepz-shapeshifterz')
+
+    return f'Genesis: {gen_floor_price} | Armoury: {arm_floor_price} | SS: {ss_floor_price} '
